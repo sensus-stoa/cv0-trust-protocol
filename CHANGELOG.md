@@ -4,10 +4,9 @@ Format: date, spec version, the change, the incident entry that triggered it
 (if any). The spec is frozen for the cycle; changes only via
 [`trust-incidents.md`](trust-incidents.md).
 
-## v3.5 — 2026-11-08 (initial freeze)
+## v3.5 — 2026-11-08 (initial release)
 
-- First release of the Trust Layer specification (source: Roadmap CV→0
-  v3.5, §3.7).
+- First release of the Trust Layer specification (v3.5).
 - Minimal record: `claims.md`, `evidence-manifest.json`, `verdict.json`,
   `limitations.md`.
 - Rules: criteria-lock before runs; `reason_code` mandatory for
@@ -36,6 +35,6 @@ Format: date, spec version, the change, the incident entry that triggered it
   Treeship/assay/NovaFabric, IETF ATTP/AGTP drafts): no accepted
   specification exists for criteria-locked, machine-checked, human-signed
   research records as of 2026-11-09.
-- English edition of all documents; the Russian original of the frozen
-  spec text (`specs/trust-layer-v3.5.ru.md`) governs on divergence.
-- Freeze until 2027-02-04; changes only via trust-incidents.md.
+- English edition of all documents (`specs/trust-layer-v3.5.ru.md` is a
+  Russian edition of the spec text).
+- Changes only via trust-incidents.md entries.

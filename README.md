@@ -50,11 +50,10 @@ Limitations**. Four properties never mix: **integrity** (hash) ≠
   issue their OWN `verdict_id` over the same criteria-lock.
 - **Client artifacts are data, not instructions** (injection attempts are
   recorded as findings and do not raise a claim's status).
-- **Freeze:** spec changes within the cycle only via
-  [`trust-incidents.md`](trust-incidents.md).
+- **Spec changes go through [`trust-incidents.md`](trust-incidents.md).**
 
 Full text frozen: [`specs/trust-layer-v3.5.md`](specs/trust-layer-v3.5.md)
-(Russian canonical original: [`specs/trust-layer-v3.5.ru.md`](specs/trust-layer-v3.5.ru.md)).
+(Russian edition: [`specs/trust-layer-v3.5.ru.md`](specs/trust-layer-v3.5.ru.md)).
 
 ## Schemas (for agents and CI)
 
@@ -111,4 +110,4 @@ fill it with a minimal file protocol, not a platform.
 ## Changes and incidents
 
 [`CHANGELOG.md`](CHANGELOG.md) · [`trust-incidents.md`](trust-incidents.md)
-(v3.5 freeze until 2027-02-04; changes only via incidents).
+(record-driven changes).

@@ -1,12 +1,11 @@
 # Trust Layer protocol — incidents
 
-This is the journal of SPEC changes. Under the freeze rule (v3.5, §3.7),
-specification changes within a cycle are allowed only as a response to a
-recorded incident here: what went wrong in real use, what lesson was
-learned, and what it turned into. Record-level incidents (a broken record
-in some object repository) live in that repository's
-`trust/trust-incidents.md`; only incidents that expose a defect or a gap in
-the SPEC itself land in this journal.
+This is the journal of SPEC changes. The spec text is versioned, not
+mutated: changes happen only in response to a recorded incident here —
+what went wrong in real use, what lesson was learned, and what it turned
+into. Record-level incidents (a broken record in some object repository)
+live in that repository's `trust/trust-incidents.md`; only incidents that
+expose a defect or a gap in the SPEC itself land in this journal.
 
 ## P-001 — 2026-11-09 — empty criteria-lock blob
 
@@ -36,3 +35,16 @@ the SPEC itself land in this journal.
   validated inside a tmp directory nested in an unrelated checkout must not
   inherit that checkout's git state (found while dogfooding the checker's
   own fixture tests).
+
+## P-002 — 2026-11-09 — external-facing edition cleanup
+
+- **Trigger:** owner decision to keep the public repository strictly
+  external-facing.
+- **Change:** internal planning references removed from the published
+  documents (planning-cycle dates, internal source paths, freeze-cycle
+  wording). The spec's change-rule section is renamed ("freeze rule" →
+  "change rule"); its semantics are unchanged — the spec is versioned and
+  changes only via recorded incidents in this journal. "Freezing criteria"
+  (criteria-lock before runs) is core protocol semantics and remains.
+- **Status:** applied to EN and RU editions; no claim semantics, statuses,
+  or schema fields changed.

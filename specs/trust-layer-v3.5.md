@@ -1,16 +1,12 @@
 # CV→0 Trust Layer — Specification v3.5
 
-> **Status:** frozen for the 90-day cycle (November 8, 2026 — February 4, 2027).
-> Changes only via an entry in [`trust-incidents.md`](../trust-incidents.md).
-> **Source:** Roadmap CV→0 v3.5, §3.7 (EvoFamily/Strategy, 2026-11-08).
-> The canonical original is the Russian text ([`trust-layer-v3.5.ru.md`](trust-layer-v3.5.ru.md));
-> this English translation is provided for agents and international readers;
-> in case of divergence, the Russian original governs.
-> **Reference implementation and worked example:** sensus-stoa/permutation-test-ml,
-> record V-PTM-001 (criteria-lock `c60ed76`, machine-check `tc` 10/10 PASS,
+> **Version:** 3.5. Changes only via an entry in [`trust-incidents.md`](../trust-incidents.md).
+> **Reference record (worked example):** sensus-stoa/permutation-test-ml,
+> V-PTM-001 (criteria-lock `c60ed76`, machine-check `tc` 10/10 PASS,
 > human sign-off 2026-11-09, report sha256 `fcf975ee`).
 > Machine-readable contract: [`schemas/`](../schemas) — stable `$id` URLs
 > fetchable by agents over raw.githubusercontent.
+> Russian edition of this text: [`trust-layer-v3.5.ru.md`](trust-layer-v3.5.ru.md).
 
 ---
 
@@ -194,9 +190,8 @@ Each artifact in the manifest carries a `disclosure` level: `public`,
 `verdict.json` must contain `valid_until`: an explicit date or
 `object-change`.
 
-#### The freeze rule
+#### The change rule
 
-The Trust Layer specification is frozen for the 90-day cycle. Changes are
-allowed only as a response to an entry in `trust-incidents.md` (what went
-wrong in real use). New fields, statuses, and files without an incident are
-not added.
+The specification is versioned. Changes are allowed only as a response to
+an entry in `trust-incidents.md` (what went wrong in real use). New fields,
+statuses, and files without an incident are not added.
