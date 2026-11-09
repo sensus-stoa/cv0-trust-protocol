@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sensus-stoa/cv0-trust-protocol/main/schemas/evidence-manifest.schema.json",
+  "title": "CV0 Trust Layer - evidence manifest (spec v3.5)",
+  "description": "Evidence manifest: artifacts backing claims, with hashes, provenance roles and disclosure levels. Validates structure, required fields and types only - it does not attest truthfulness of values. Cross-document integrity (sha256 of files, existence of controls, lock-blob non-emptiness) is enforced by a mechanical validator (reference implementation: tc).",
+  "type": "object",
+  "required": ["schema", "protocol_version", "date", "object", "criteria_lock", "evidence"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "trust-manifest/v3.5"
+    },
+    "protocol_version": {
+      "type": "string",
+      "minLength": 3
+    },
+    "date": {
+      "type": "string"
+    },
+    "object": {
+      "type": "object",
+      "required": ["repo", "commit"],
+      "properties": {
+        "repo": {
+          "type": "string",
+          "minLength": 3
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 7
+        }
+      }
+    },
+    "criteria_lock": {
+      "type": "object",
+      "description": "The criteria-lock commit MUST contain a non-empty claims.md and MUST be an ancestor of HEAD; an empty blob invalidates the lock (see protocol incidents P-001).",
+      "required": ["commit", "date", "note"],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "minLength": 7
+        },
+        "date": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "role", "disclosure"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^E-[0-9]+$"
+          },
+          "type": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "type": "string",
+            "description": "Provenance class. author-* is self-verification and MUST NOT be labelled independently reproduced.",
+            "enum": [
+              "author-generated",
+              "author-executed",
+              "author-reported",
+              "client-generated",
+              "client-executed",
+              "provider-verified",
+              "independently-reproduced"
+            ]
+          },
+          "disclosure": {
+            "type": "string",
+            "enum": ["public", "client", "sealed"]
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "controls": {
+      "type": "array",
+      "description": "Negative controls backing reliability claims. N is the control sample size; '0 false' without N is not accepted (rule of three: ~3/N for 0 of N at 95%).",
+      "items": {
+        "type": "object",
+        "required": ["id", "N"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^NC-"
+          },
+          "N": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rejections": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "wilson_ci_95": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "disclosure_levels": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

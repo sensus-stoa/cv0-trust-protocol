@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sensus-stoa/cv0-trust-protocol/main/schemas/verdict.schema.json",
+  "title": "CV0 Trust Layer - verdict (spec v3.5)",
+  "description": "The verdict over claims, produced against a criteria-locked claims.md and a fixed object_version. Append-only: a superseded verdict is never overwritten - a new verdict_id is issued. Independent verifiers issue their OWN verdict_id against the same criteria_lock rather than amending the author's verdict. The schema validates structure; PASS/FAIL meaning is bound to the claims text frozen in claims.md.",
+  "type": "object",
+  "required": ["schema", "verdict_id", "date", "valid_until", "object_version", "protocol_version", "executor", "verifier", "claims"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "trust-verdict/v3.5"
+    },
+    "verdict_id": {
+      "type": "string",
+      "pattern": "^V-"
+    },
+    "date": {
+      "type": "string"
+    },
+    "valid_until": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Explicit expiry date, or the literal 'object-change' (validity ends when the object changes)."
+    },
+    "object_version": {
+      "type": "string",
+      "minLength": 7,
+      "description": "Commit/release/model version of the object the verdict applies to. Reproductions MUST pin this, never HEAD."
+    },
+    "protocol_version": {
+      "type": "string"
+    },
+    "executor": {
+      "type": "string"
+    },
+    "verifier": {
+      "type": "string",
+      "description": "Who verified. Author self-verification is allowed but MUST state that it is not independent."
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^C-[0-9]+$"
+          },
+          "status": {
+            "enum": ["PASS", "FAIL", "INCONCLUSIVE"]
+          },
+          "verification": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^E-[0-9]+$"
+            }
+          },
+          "control": {
+            "type": "string",
+            "pattern": "^NC-",
+            "description": "Negative control id from the evidence manifest."
+          },
+          "reason_code": {
+            "type": "string",
+            "description": "Scientific: DATA, GRAMMAR, NOISE, DEPTH. Operational: ACCESS, BUDGET, ENVIRONMENT, CONFLICT_EVIDENCE, OUT_OF_SCOPE."
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "PASS"
+                },
+                "verification": {
+                  "type": "string",
+                  "pattern": "V-02"
+                }
+              },
+              "required": ["status", "verification"]
+            },
+            "then": {
+              "required": ["control"],
+              "description": "A statistical PASS (verification references a repeated-runs procedure such as V-02) requires a negative control reference with N >= 1 in the manifest."
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "enum": ["FAIL", "INCONCLUSIVE"]
+                }
+              },
+              "required": ["status"]
+            },
+            "then": {
+              "required": ["reason_code"]
+            }
+          }
+        ]
+      }
+    },
+    "negative_controls": {
+      "type": "array",
+      "description": "Control outcomes backing the PASS claims: id, N, false-acceptance count/rate. '0 false' without N is not accepted.",
+      "items": {
+        "type": "object",
+        "required": ["id", "N"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^NC-"
+          },
+          "N": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "wilson_ci_95": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}
