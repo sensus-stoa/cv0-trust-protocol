@@ -1,8 +1,9 @@
-# LICENSES.md — file-to-license mapping (PROPOSED)
+# LICENSES.md — file-to-license mapping (APPLIED)
 
-Status: **PROPOSED** — this mapping is part of the Zenodo candidate archive
-and awaits the author's final confirmation before it is considered applied
-to the `main` branch.
+Status: **APPLIED** to the candidate archive by author decision
+2026-11-09 (split scheme confirmed: CC BY 4.0 for spec/docs/schemas,
+Apache-2.0 for checker). The mapping reaches the `main` branch
+when the candidate edition is merged and tagged at publish.
 
 Rationale per the author's decision (2026-11-09): documentation and the
 normative specification are CC BY 4.0 (attribution-based reuse); the checker
