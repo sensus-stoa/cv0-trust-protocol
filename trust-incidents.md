@@ -26,8 +26,8 @@ expose a defect or a gap in the SPEC itself land in this journal.
   LOCK_ANCESTOR), and the checker must know how to FAIL on this defect
   (regression test I-001).
 - **Status:** spec v3.5 text unchanged — the lesson is enforced in the
-  validator and recorded here. The object's lock validity from the freeze
-  date was unaffected: the criteria text existed byte-for-byte (restoring
+  validator and recorded here. The object's lock validity from the
+  criteria-lock date was unaffected: the criteria text existed byte-for-byte (restoring
   identical text is not a criteria change), the re-lock `c60ed76` carries
   identical text, and no re-runs were required.
 - **Validator hardening beyond the spec text:** the checker never walks up

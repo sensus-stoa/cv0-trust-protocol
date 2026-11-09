@@ -219,7 +219,7 @@ all five cases before commit.
   repo's `trust/trust-incidents.md`: symptom, cause, action, evidence of
   criteria immutability (empty diff or hash), status, lesson.
 - **Protocol-level incidents** (a defect or gap in the SPEC itself) live in
-  this repository's [`trust-incidents.md`](trust-incidents.md). The freeze
+  this repository's [`trust-incidents.md`](trust-incidents.md). The change
   rule: spec changes happen only in response to such an entry.
 
 Restoring a lost record from a valid lock: recovery of the same text is
