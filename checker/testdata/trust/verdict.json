@@ -1,0 +1,40 @@
+{
+  "schema": "trust-verdict/v3.5",
+  "verdict_id": "V-FIXTURE-001",
+  "date": "2026-11-09",
+  "valid_until": "object-change",
+  "object_version": "fixture0commit0dead0beef0dead0beef0000",
+  "protocol_version": "cv0-trust-layer/3.5",
+  "executor": "tc self-test",
+  "verifier": "Evgeniy Dolgov (author; not independent)",
+  "claims": [
+    {
+      "id": "C-01",
+      "status": "PASS",
+      "verification": "V-01: clean run against the fixture artifact",
+      "evidence": ["E-01"]
+    },
+    {
+      "id": "C-02",
+      "status": "PASS",
+      "verification": "V-02: repeated runs, control NC-01",
+      "evidence": ["E-01"],
+      "control": "NC-01",
+      "note": "fixture values only"
+    },
+    {
+      "id": "C-03",
+      "status": "INCONCLUSIVE",
+      "reason_code": "OUT_OF_SCOPE",
+      "note": "fixture placeholder; no claim is made"
+    }
+  ],
+  "negative_controls": [
+    {
+      "id": "NC-01",
+      "N": 50,
+      "rate": 0.04,
+      "wilson_ci_95": [0.011, 0.138]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema": "trust-manifest/v3.5",
+  "protocol_version": "cv0-trust-layer/3.5",
+  "date": "2026-11-09",
+  "object": {
+    "repo": "https://github.com/sensus-stoa/cv0-trust-protocol",
+    "commit": "fixture0commit0dead0beef0dead0beef0000"
+  },
+  "criteria_lock": {
+    "commit": "0lock0commit0dead0beef0dead0beef000",
+    "date": "2026-11-09",
+    "note": "self-test fixture (not a real lock; validator fixture tests construct their own git repos when needed)"
+  },
+  "evidence": [
+    {
+      "id": "E-01",
+      "type": "code",
+      "path": "artifact.txt",
+      "sha256": "df266822f87e2b0b8d12f9a3d742700e12cf6a74397926767206f856cfe0561e",
+      "role": "author-generated",
+      "disclosure": "public",
+      "note": "fixture artifact"
+    },
+    {
+      "id": "E-02",
+      "type": "publication",
+      "url": "https://example.org/tc-fixture",
+      "role": "author-reported",
+      "disclosure": "public"
+    }
+  ],
+  "controls": [
+    {
+      "id": "NC-01",
+      "N": 50,
+      "description": "fixture negative control",
+      "rate": 0.04,
+      "rejections": 2,
+      "wilson_ci_95": [0.011, 0.138],
+      "note": "numbers are fixture values, not measurements"
+    }
+  ],
+  "disclosure_levels": {
+    "public": "everything in this fixture is public"
+  }
+}

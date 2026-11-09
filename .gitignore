@@ -1,0 +1,4 @@
+# Go checker build artifacts and auto-reports
+checker/bin/
+trust_check_report.json
+*.test

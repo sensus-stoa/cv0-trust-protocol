@@ -1,26 +1,41 @@
 # Changelog — CV→0 Trust Layer protocol
 
-Формат: дата, версия спеки, суть изменения, запись инцидента (если послужило
-причиной). Спека заморожена на цикл; изменения — только через
+Format: date, spec version, the change, the incident entry that triggered it
+(if any). The spec is frozen for the cycle; changes only via
 [`trust-incidents.md`](trust-incidents.md).
 
 ## v3.5 — 2026-11-08 (initial freeze)
 
-- Первый релиз спецификации Trust Layer (источник: Roadmap CV→0 v3.5, §3.7).
-- Минимальный рекорд: `claims.md`, `evidence-manifest.json`, `verdict.json`,
+- First release of the Trust Layer specification (source: Roadmap CV→0
+  v3.5, §3.7).
+- Minimal record: `claims.md`, `evidence-manifest.json`, `verdict.json`,
   `limitations.md`.
-- Правила: criteria-lock до запуска; reason_code обязателен для
-  FAIL/INCONCLUSIVE; PASS по надёжности требует отрицательного контроля с
-  N ≥ 1 (0/N → правило трёх ≈ 3/N); Verifier Track Record на посаженных
-  дефектах; уровни disclosure (public/client/sealed); `valid_until`
-  (дата либо object-change); append-only история вердиктов.
-- Классы происхождения evidence (из v3.3): client-generated,
+- Rules: criteria-lock before runs; `reason_code` mandatory for
+  FAIL/INCONCLUSIVE; `PASS` on reliability claims requires a negative
+  control with N ≥ 1 (0/N → rule of three ≈ 3/N); Verifier Track Record on
+  planted defects; disclosure levels (public/client/sealed); `valid_until`
+  (date or object-change); append-only verdict history.
+- Evidence provenance classes (from v3.3): client-generated,
   client-executed, provider-verified, independently reproduced.
-- Машиночитаемые схемы: `schemas/evidence-manifest.schema.json`,
-  `schemas/verdict.schema.json` (draft 2020-12) — структура и обязательные
-  поля; правдивость значений схема не удостоверяет.
-- Работающий пример: sensus-stoa/permutation-test-ml, рекорд V-PTM-001
+- Machine-readable schemas: `schemas/evidence-manifest.schema.json`,
+  `schemas/verdict.schema.json` (draft 2020-12) — structure and mandatory
+  fields; the schema does not attest truthfulness of values. Both schemas
+  validate the live worked-example record.
+- Worked example: sensus-stoa/permutation-test-ml, record V-PTM-001
   (criteria-lock `c60ed76`; machine-check 10/10 PASS; human sign-off
-  2026-11-09, report sha256 `fcf975ee`); валидатор `tc` — Go 1.27.3,
-  stdlib-only, self-test N=5 негатив-контролей.
-- Freeze до 2027-02-04; изменения — только через trust-incidents.md.
+  2026-11-09, report sha256 `fcf975ee`).
+- Checker `tc` v0.1.0: Go 1.27.3, stdlib-only; vendored under `checker/`
+  (source, fixture record in `checker/testdata/`, self-tests) and a
+  prebuilt static binary under `releases/` (+ `.sha256`). Self-test N=5
+  planted defects: all caught (see `docs/verifier-track-record.md` in the
+  object repository). The checker's git-context check never walks up the
+  directory tree (a tmp dir nested inside an unrelated checkout must not
+  inherit its git context).
+- Related-work survey recorded in README (CODECHECK, in-toto/SLSA, ACM
+  badges, arXiv:2610.07274 "A Trust Layer for Agent Evaluation",
+  Treeship/assay/NovaFabric, IETF ATTP/AGTP drafts): no accepted
+  specification exists for criteria-locked, machine-checked, human-signed
+  research records as of 2026-11-09.
+- English edition of all documents; the Russian original of the frozen
+  spec text (`specs/trust-layer-v3.5.ru.md`) governs on divergence.
+- Freeze until 2027-02-04; changes only via trust-incidents.md.
