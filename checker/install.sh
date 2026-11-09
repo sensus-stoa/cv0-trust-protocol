@@ -14,9 +14,11 @@ GO_BIN="${GO:-go}"
 }
 
 # stripped static binary; bin/tc and ~/.local/bin/tc stay hash-identical
-# stripped, path-independent static binary; bin/tc, ~/.local/bin/tc and the
-# release artifact stay hash-identical for rebuild verification
-"$GO_BIN" build -trimpath -ldflags "-s -w" -o bin/tc .
+# Deterministic build: -trimpath removes working-dir paths, -buildvcs=false
+# removes VCS stamps - so a rebuild from the source archive reproduces the
+# shipped binary byte-for-byte (vcs stamps differ inside a checkout vs a
+# plain tarball and would otherwise break rebuild verification).
+"$GO_BIN" build -trimpath -buildvcs=false -ldflags "-s -w" -o bin/tc .
 
 TARGET="${TC_INSTALL_DIR:-$HOME/.local/bin}"
 mkdir -p "$TARGET"
