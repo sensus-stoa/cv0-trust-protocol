@@ -55,6 +55,21 @@ Limitations**. Four properties never mix: **integrity** (hash) ≠
 Full text frozen: [`specs/trust-layer-v3.5.md`](specs/trust-layer-v3.5.md)
 (Russian edition: [`specs/trust-layer-v3.5.ru.md`](specs/trust-layer-v3.5.ru.md)).
 
+## Versioning — two axes, deliberately separate
+
+- **Specification text version: v3.5.** The frozen claims/rules wording in
+  `specs/`.
+- **Release edition version: v3.6.0** (and future releases): the bundle =
+  specification text + schemas + checker + fixture record + built
+  artifacts. Editions advance (semver of the bundle) when tooling,
+  packaging, editions, or non-normative presentation change — while the
+  spec text itself can stay v3.5.
+
+**Compatibility:** schemas and record rules are unchanged since the v3.5
+text — records produced under v3.5 rules remain valid in v3.6.0 editions;
+a change to schemas or rules would advance the specification text version
+itself.
+
 ## Schemas (for agents and CI)
 
 - `schemas/evidence-manifest.schema.json`
