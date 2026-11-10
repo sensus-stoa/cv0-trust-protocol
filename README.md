@@ -70,6 +70,19 @@ text — records produced under v3.5 rules remain valid in v3.6.0 editions;
 a change to schemas or rules would advance the specification text version
 itself.
 
+**Primary reproduction (release v3.6.0):**
+
+```bash
+git clone https://github.com/sensus-stoa/cv0-trust-protocol
+cd cv0-trust-protocol && git checkout v3.6.0
+cd checker && go test -count=1 . && go build -trimpath -buildvcs=false -ldflags "-s -w" -o tc .
+# tc must rebuild byte-for-byte from this tag: sha256(tc) == 124b20ab3984eb54…
+```
+
+The archived deposit variant (tarball + per-file hashes) is the Zenodo
+record doi:10.5281/zenodo.24102625 — used to verify the exact deposited
+files; see `GUIDE.md` §"Archived deposit variant".
+
 ## Schemas (for agents and CI)
 
 - `schemas/evidence-manifest.schema.json`

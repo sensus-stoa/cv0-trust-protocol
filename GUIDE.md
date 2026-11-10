@@ -36,13 +36,20 @@ never exists without a green auto-check.
 
 ```bash
 # download from GitHub Releases of the protocol repo (or from the object repo)
-curl -fL -o tc https://github.com/sensus-stoa/cv0-trust-protocol/releases/download/v3.5.0/tc-v0.1.0-linux-amd64
+curl -fL -o tc https://github.com/sensus-stoa/cv0-trust-protocol/releases/download/v3.6.0/tc-v0.1.0-linux-amd64
 sha256sum tc                                     # compare with releases/tc-v0.1.0-linux-amd64.sha256
 chmod +x tc && mv tc ~/.local/bin/tc             # ~/.local/bin must be in PATH
 ```
 
 The binary is a static stripped ELF (no libc dependency): it runs on any
 glibc/musl Linux and survives `scp` to another machine.
+
+**Primary reproduction of release v3.6.0** (preferred over downloading the
+binary): `git clone https://github.com/sensus-stoa/cv0-trust-protocol &&
+git checkout v3.6.0` — then the build contract in "Option B" reproduces
+`releases/tc-v0.1.0-linux-amd64` byte-for-byte. The Zenodo deposit
+(doi:10.5281/zenodo.24102625) archives the same snapshot — see
+"Archived deposit variant" below.
 
 ### Option B — build from the vendored source
 
@@ -225,6 +232,33 @@ all five cases before commit.
 Restoring a lost record from a valid lock: recovery of the same text is
 byte-for-byte, is not a criteria change, and does not require re-runs;
 different text is a new post-hoc version and does require them.
+
+---
+
+## Archived deposit variant (Zenodo)
+
+The Zenodo deposit (doi:10.5281/zenodo.24102625, edition v3.6.0) contains
+the same files as this repository at tag `v3.6.0` — packaged as
+`cv0-trust-layer-v3.6.0.tar.gz` plus a per-file hash list
+(`archive-file-hashes.txt`, an external sidecar of the packaging, not part
+of the tar). Verification without git:
+
+```bash
+sha256sum cv0-trust-layer-v3.6.0.tar.gz          # == d9c4f5a0…3544
+tar -xzf cv0-trust-layer-v3.6.0.tar.gz
+cd cv0-trust-layer-v3.6.0/checker
+go test -count=1 .                                # 5/5 self-tests
+go build -trimpath -buildvcs=false -ldflags "-s -w" -o tc .
+sha256sum tc                                      # == releases/tc-v0.1.0-linux-amd64.sha256
+
+# per-file provenance against the author's external sidecar:
+sha256sum $(find cv0-trust-layer-v3.6.0 -type f) > my-hashes.txt
+diff <(sort -k2 my-hashes.txt) <(sort -k2 archive-file-hashes.txt)   # empty = identical
+```
+
+Release editions and the spec text version are separate axes: the deposit
+is release edition v3.6.0 carrying specification text v3.5. See the
+repository README §"Versioning".
 
 ---
 

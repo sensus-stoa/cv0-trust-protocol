@@ -20,6 +20,11 @@ real file (not a symlink) to `~/.local/bin/tc`; `bin/tc` and the deployed
 copy are sha256-identical. Upgrade after edits: run `./install.sh` again.
 The binary has no libc dependency and can be `scp`ed anywhere as-is.
 
+Build contract: `-trimpath -buildvcs=false -ldflags "-s -w"` — a rebuild
+from the same commit reproduces the shipped `releases/tc-*` binary
+byte-for-byte. Primary reproduction of a release edition:
+`git checkout <release-tag>` then the build above.
+
 ## Checking a record
 
 ```bash
