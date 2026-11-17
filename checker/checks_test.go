@@ -312,6 +312,51 @@ func TestAuditShapeRejectsUnknownReasonCode(t *testing.T) {
 	expectFailCheck(t, rep, "AUDIT_SHAPE")
 }
 
+// The analyst-found hole in the first AUDIT_SHAPE draft: a "detail" carrying
+// a JSON object (the exact v4 corruption shape) must FAIL the check — with
+// typed parsing the unmarshal error used to skip the file entirely and the
+// check degenerated to SKIP.
+func TestAuditShapeRejectsObjectDetail(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", func() map[string]interface{} {
+		v := goodAuditVerdict()
+		audits := v["audits"].([]map[string]interface{})
+		audits[2]["detail"] = map[string]interface{}{"k": 1}
+		return v
+	}())
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "AUDIT_SHAPE")
+}
+
+// Full v4-style corruption: ok-audit with narrative reason_code, an object
+// in detail and an empty metrics object — the report is FAILED, never skipped.
+func TestAuditShapeRejectsV4Corruption(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", func() map[string]interface{} {
+		v := goodAuditVerdict()
+		audits := v["audits"].([]map[string]interface{})
+		audits[2]["reason_code"] = "reported MAE reproduces from predictions (diff 0.0000%)"
+		audits[2]["detail"] = map[string]interface{}{"reported_mae": 2519.0, "relative_diff": 0.0}
+		audits[2]["metrics"] = map[string]interface{}{}
+		return v
+	}())
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "AUDIT_SHAPE")
+}
+
+func TestAuditShapeRejectsMalformedVerdict(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", map[string]interface{}{
+		"case_id": "case-a",
+		"verdict": map[string]interface{}{
+			"status": map[string]interface{}{"x": 1}, // status is not a string
+			"audits": []interface{}{},
+		},
+	})
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "AUDIT_SHAPE")
+}
+
 // AUDIT_DECISION_XREF: decision metadata must match the report exactly —
 // a claim may not quietly disagree with its own evidence.
 func TestAuditDecisionXrefMatchesAndMismatches(t *testing.T) {

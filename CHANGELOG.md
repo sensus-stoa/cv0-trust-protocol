@@ -4,6 +4,23 @@ Format: date, spec version, the change, the incident entry that triggered it
 (if any). The spec is frozen for the cycle; changes only via
 [`trust-incidents.md`](trust-incidents.md).
 
+## tc v0.2.1 — 2026-11-17 (bugfix)
+
+- AUDIT_SHAPE parse-hardening, found by the post-merge review of the
+  V-EVTR-005 record: run-output report fields are now parsed as raw JSON
+  and type-checked explicitly. With typed fields (`Detail *string`), the
+  exact v4 corruption ("detail": {...} instead of a string) made
+  json.Unmarshal fail and collectAuditReports silently skip the file — the
+  check degenerated to SKIP precisely where it had to FAIL. A report with
+  any malformed field is now registered and FAILED with a per-field message
+  ("detail is not a JSON string", "metrics is not a JSON object",
+  "verdict.status is missing or not a JSON string", ...).
+- Self-tests: a planted v4-corruption report (narrative reason_code +
+  object detail + empty metrics) now FAILs AUDIT_SHAPE; object-in-detail
+  and malformed-verdict-status regressions added.
+- signoff.go: sign-off path built with filepath.Join instead of string
+  concatenation.
+
 ## tc v0.2.0 — 2026-11-17 (checker only; spec text v3.5 unchanged)
 
 - Ten new checks, all backward compatible (records without the new optional

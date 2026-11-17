@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -60,7 +61,7 @@ func doSignoff(root, signer, reportPath string, rep *Report) error {
 	b.WriteString("any change to the record or object invalidates it and requires a re-run\n")
 	b.WriteString("of the auto-check plus a fresh sign-off. Auto-PASS alone is not a verdict.\n")
 
-	sigPath := root + "/trust/signoff.md"
+	sigPath := filepath.Join(root, "trust", "signoff.md")
 	if err := os.WriteFile(sigPath, []byte(b.String()), 0o644); err != nil {
 		return err
 	}

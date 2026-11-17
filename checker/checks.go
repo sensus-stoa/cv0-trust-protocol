@@ -329,44 +329,19 @@ func runChecks(root string) (*Report, error) {
 		}
 
 		// AUDIT_SHAPE: serialization contract of the audit battery's own output.
-		// Statuses from frozen enums; ok-entries carry reason_code "" plus a
+		// Fields are parsed as raw JSON and type-checked explicitly (a "detail"
+		// carrying an object must FAIL the check, never silently skip the file):
+		// statuses from frozen enums; ok-entries carry reason_code "" plus a
 		// string detail and an object metrics; non-ok entries cite the frozen
 		// reason-code vocabulary. Catches positional/serialization corruption
-		// of the audit output (the class that corrupted per-case evidence).
+		// of the audit battery's own output.
 		if len(reports) == 0 {
 			r.add("AUDIT_SHAPE", "SKIP", "no run-output audit reports among the evidence")
 		} else {
 			var problems []string
-			caseStatuses := map[string]bool{"PASS": true, "FAIL": true, "INCONCLUSIVE": true}
 			for _, rep := range reports {
-				if !caseStatuses[rep.status] {
-					problems = append(problems, fmt.Sprintf("%s: verdict.status %q not in {PASS, FAIL, INCONCLUSIVE}", rep.evidenceID, rep.status))
-				}
-				for _, ae := range rep.audits {
-					name := str(ae.Name)
-					loc := fmt.Sprintf("%s[%s]", rep.evidenceID, name)
-					if name == "" {
-						problems = append(problems, loc+": audit entry without a name")
-						continue
-					}
-					st := str(ae.Status)
-					if !auditStatuses[st] {
-						problems = append(problems, fmt.Sprintf("%s: status %q not in {ok, fail, inconclusive, skipped}", loc, st))
-						continue
-					}
-					if ae.ReasonCode == nil {
-						problems = append(problems, loc+": missing reason_code field")
-					} else if st == "ok" && *ae.ReasonCode != "" {
-						problems = append(problems, fmt.Sprintf("%s: ok-audit carries reason_code %q (must be empty; narrative belongs in detail)", loc, *ae.ReasonCode))
-					} else if st != "ok" && !reasonCodes[*ae.ReasonCode] {
-						problems = append(problems, fmt.Sprintf("%s: reason_code %q outside the frozen CV0-TrustLayer-v3.5 vocabulary", loc, *ae.ReasonCode))
-					}
-					if ae.Detail == nil {
-						problems = append(problems, loc+": missing detail field")
-					}
-					if ae.Metrics == nil {
-						problems = append(problems, loc+": missing metrics object")
-					}
+				for _, p := range rep.shapeProblems {
+					problems = append(problems, rep.evidenceID+": "+p)
 				}
 			}
 			if len(problems) > 0 {
@@ -422,12 +397,11 @@ func runChecks(root string) (*Report, error) {
 				}
 				var fails, inconv []string
 				for _, ae := range rep.audits {
-					st := str(ae.Status)
-					switch st {
+					switch ae.status {
 					case "fail":
-						fails = append(fails, str(ae.Name))
+						fails = append(fails, ae.name)
 					case "inconclusive":
-						inconv = append(inconv, str(ae.Name))
+						inconv = append(inconv, ae.name)
 					}
 				}
 				if !equalStrings(sortedCopy(*c.Failing), sortedCopy(fails)) {
@@ -482,7 +456,7 @@ func runChecks(root string) (*Report, error) {
 					}
 					byName := map[string]string{}
 					for _, ae := range rep.audits {
-						byName[str(ae.Name)] = str(ae.Status)
+						byName[ae.name] = ae.status
 					}
 					for _, a := range p.audits {
 						st, ok := byName[a]
@@ -515,20 +489,19 @@ func runChecks(root string) (*Report, error) {
 				checked := 0
 				for _, rep := range reports {
 					for _, ae := range rep.audits {
-						name := str(ae.Name)
-						c, declared := man.AuditMetricsContract[name]
-						if !declared || str(ae.Status) != c.OnStatus {
+						c, declared := man.AuditMetricsContract[ae.name]
+						if !declared || ae.status != c.OnStatus {
 							continue
 						}
 						checked++
 						have := map[string]bool{}
-						for k := range ae.Metrics {
+						for _, k := range ae.metricKeys {
 							have[k] = true
 						}
 						for _, key := range c.RequiredKeys {
 							if !have[key] {
 								problems = append(problems, fmt.Sprintf("%s[%s] (status %s): missing metric key %q per manifest contract",
-									rep.evidenceID, name, c.OnStatus, key))
+									rep.evidenceID, ae.name, c.OnStatus, key))
 							}
 						}
 					}
@@ -805,33 +778,35 @@ var reasonCodes = map[string]bool{
 
 var auditStatuses = map[string]bool{"ok": true, "fail": true, "inconclusive": true, "skipped": true}
 
-type auditEntry struct {
-	Name       *string                `json:"name"`
-	Status     *string                `json:"status"`
-	ReasonCode *string                `json:"reason_code"`
-	Detail     *string                `json:"detail"`
-	Metrics    map[string]interface{} `json:"metrics"`
+// auditReportFile keeps every field as raw JSON: typed fields would make
+// json.Unmarshal fail on the very corruption AUDIT_SHAPE exists to catch
+// (e.g. "detail": {...} instead of a string — the v4 defect), and a failed
+// unmarshal would silently skip the file instead of failing it.
+type auditReportFile struct {
+	CaseID  json.RawMessage `json:"case_id"`
+	Verdict json.RawMessage `json:"verdict"`
 }
 
-type auditReportFile struct {
-	CaseID  string `json:"case_id"`
-	Verdict *struct {
-		Status     string       `json:"status"`
-		ReasonCode string       `json:"reason_code"`
-		Audits     []auditEntry `json:"audits"`
-	} `json:"verdict"`
+// decodedAudit carries best-effort decoded values for the cross-reference
+// checks; when a field is malformed the decoded value is empty and the
+// shape problem is reported by AUDIT_SHAPE.
+type decodedAudit struct {
+	name       string
+	status     string
+	metricKeys []string
 }
 
 // auditReport is a run-output evidence item that embeds a case verdict with
 // the audit battery's per-audit outcomes (e.g. the per-case JSON files of a
 // track-record run).
 type auditReport struct {
-	evidenceID string
-	path       string
-	caseID     string
-	status     string
-	reasonCode string
-	audits     []auditEntry
+	evidenceID    string
+	path          string
+	caseID        string
+	status        string
+	reasonCode    string
+	audits        []decodedAudit
+	shapeProblems []string
 }
 
 func str(v *string) string {
@@ -839,6 +814,41 @@ func str(v *string) string {
 		return ""
 	}
 	return *v
+}
+
+func rawAsString(m json.RawMessage) (string, bool) {
+	var s string
+	if err := json.Unmarshal(m, &s); err != nil {
+		return "", false
+	}
+	return s, true
+}
+
+func rawAsObject(m json.RawMessage) (map[string]json.RawMessage, bool) {
+	var o map[string]json.RawMessage
+	if err := json.Unmarshal(m, &o); err != nil {
+		return nil, false
+	}
+	return o, true
+}
+
+// fieldCheck returns a problem message when a raw field is absent or is not
+// a JSON value of the wanted kind ("string" or "object").
+func fieldCheck(field json.RawMessage, fname, want string) string {
+	if len(field) == 0 || string(field) == "null" {
+		return fname + " is missing"
+	}
+	switch want {
+	case "string":
+		if _, ok := rawAsString(field); !ok {
+			return fname + " is not a JSON string"
+		}
+	case "object":
+		if _, ok := rawAsObject(field); !ok {
+			return fname + " is not a JSON object"
+		}
+	}
+	return ""
 }
 
 func collectAuditReports(abs string, man *manifestFile) []auditReport {
@@ -851,18 +861,99 @@ func collectAuditReports(abs string, man *manifestFile) []auditReport {
 		if err != nil {
 			continue
 		}
-		var parsed auditReportFile
-		if json.Unmarshal(data, &parsed) != nil || parsed.Verdict == nil {
+		var fileMap map[string]json.RawMessage
+		if json.Unmarshal(data, &fileMap) != nil {
+			continue // not a JSON object at all: not an audit report
+		}
+		vraw, has := fileMap["verdict"]
+		if !has {
+			continue // no embedded case verdict: not an audit report
+		}
+		rep := auditReport{evidenceID: ev.ID, path: ev.Path}
+		if raw, ok := rawAsString(fileMap["case_id"]); ok {
+			rep.caseID = raw
+		}
+		vo, isObject := rawAsObject(vraw)
+		if !isObject {
+			rep.shapeProblems = append(rep.shapeProblems, "verdict is not a JSON object")
+			reports = append(reports, rep)
 			continue
 		}
-		reports = append(reports, auditReport{
-			evidenceID: ev.ID,
-			path:       ev.Path,
-			caseID:     parsed.CaseID,
-			status:     parsed.Verdict.Status,
-			reasonCode: parsed.Verdict.ReasonCode,
-			audits:     parsed.Verdict.Audits,
-		})
+		if s, ok := rawAsString(vo["status"]); ok {
+			rep.status = s
+			if !map[string]bool{"PASS": true, "FAIL": true, "INCONCLUSIVE": true}[s] {
+				rep.shapeProblems = append(rep.shapeProblems,
+					fmt.Sprintf("verdict.status %q not in {PASS, FAIL, INCONCLUSIVE}", s))
+			}
+		} else {
+			rep.shapeProblems = append(rep.shapeProblems, "verdict.status is missing or not a JSON string")
+		}
+		if s, ok := rawAsString(vo["reason_code"]); ok {
+			rep.reasonCode = s
+		} else {
+			rep.shapeProblems = append(rep.shapeProblems, "verdict.reason_code is missing or not a JSON string")
+		}
+		am, present := vo["audits"]
+		if !present || string(am) == "null" {
+			rep.shapeProblems = append(rep.shapeProblems, "verdict.audits is missing")
+		} else {
+			var entries []json.RawMessage
+			if err := json.Unmarshal(am, &entries); err != nil {
+				rep.shapeProblems = append(rep.shapeProblems, "verdict.audits is not a JSON array")
+			} else {
+				for i, el := range entries {
+					eo, isObj := rawAsObject(el)
+					if !isObj {
+						rep.shapeProblems = append(rep.shapeProblems,
+							fmt.Sprintf("verdict.audits[%d] is not a JSON object", i))
+						continue
+					}
+					loc := fmt.Sprintf("verdict.audits[%d]", i)
+					name, nameOK := rawAsString(eo["name"])
+					if p := fieldCheck(eo["name"], "name", "string"); p != "" {
+						rep.shapeProblems = append(rep.shapeProblems, loc+": "+p)
+						nameOK = false
+					}
+					ae := decodedAudit{name: name}
+					statusMsg := fieldCheck(eo["status"], "status", "string")
+					if statusMsg == "" {
+						st, _ := rawAsString(eo["status"])
+						ae.status = st
+						if !auditStatuses[st] {
+							rep.shapeProblems = append(rep.shapeProblems,
+								fmt.Sprintf("%s: status %q not in {ok, fail, inconclusive, skipped}", loc, st))
+						}
+					} else {
+						rep.shapeProblems = append(rep.shapeProblems, loc+": "+statusMsg)
+					}
+					if rc, rcOK := rawAsString(eo["reason_code"]); rcOK {
+						if ae.status == "ok" && rc != "" {
+							rep.shapeProblems = append(rep.shapeProblems,
+								fmt.Sprintf("%s: ok-audit carries reason_code %q (must be empty; narrative belongs in detail)", loc, rc))
+						}
+						if ae.status != "ok" && !reasonCodes[rc] {
+							rep.shapeProblems = append(rep.shapeProblems,
+								fmt.Sprintf("%s: reason_code %q outside the frozen CV0-TrustLayer-v3.5 vocabulary", loc, rc))
+						}
+					} else {
+						rep.shapeProblems = append(rep.shapeProblems, loc+": "+fieldCheck(eo["reason_code"], "reason_code", "string"))
+					}
+					if p := fieldCheck(eo["detail"], "detail", "string"); p != "" {
+						rep.shapeProblems = append(rep.shapeProblems, loc+": "+p)
+					}
+					if p := fieldCheck(eo["metrics"], "metrics", "object"); p != "" {
+						rep.shapeProblems = append(rep.shapeProblems, loc+": "+p)
+					} else if mo, ok := rawAsObject(eo["metrics"]); ok {
+						for k := range mo {
+							ae.metricKeys = append(ae.metricKeys, k)
+						}
+					}
+					_ = nameOK
+					rep.audits = append(rep.audits, ae)
+				}
+			}
+		}
+		reports = append(reports, rep)
 	}
 	return reports
 }
