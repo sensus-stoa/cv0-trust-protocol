@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 func main() {
 	rootFl := flag.String("root", ".", "repository root (directory containing trust/)")
@@ -27,6 +27,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(2)
 	}
+	// The report records the root AS THE CALLER PASSED IT (cleaned), not an
+	// absolute path: machine-local directory names must not leak into a
+	// file that is published next to the record. Pass "-root ." from the
+	// repository root to keep the report location-free.
+	rep.Root = filepath.Clean(*rootFl)
 
 	outPath := *outFl
 	if outPath == "" {

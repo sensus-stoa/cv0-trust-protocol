@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -231,4 +234,352 @@ func TestLockWithEmptyBlobFails(t *testing.T) {
 
 	resp := expectOverall(t, dir, "FAIL")
 	expectFailCheck(t, resp, "LOCK_BLOB")
+}
+
+// ---- v0.2.0 checks ---------------------------------------------------------
+
+// writeAuditReport writes a run-output audit report into the fixture root
+// and registers it as hashed evidence, so only the check under test fires.
+func writeAuditReport(t *testing.T, root, name, evidenceID string, verdict map[string]interface{}) {
+	t.Helper()
+	body := map[string]interface{}{"case_id": "case-a", "verdict": verdict}
+	b, err := json.MarshalIndent(body, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileBytes := append(b, '\n')
+	if err := os.WriteFile(filepath.Join(root, name), fileBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(fileBytes)
+	editManifestJSON(t, root, func(m map[string]interface{}) {
+		ev, _ := m["evidence"].([]interface{})
+		entry := map[string]interface{}{
+			"id": evidenceID, "type": "run-output", "path": name,
+			"sha256": hex.EncodeToString(sum[:]),
+		}
+		// upsert: a rewritten report must replace its earlier hash, not
+		// append a second entry with the same id
+		for i, it := range ev {
+			if itMap, _ := it.(map[string]interface{}); itMap != nil && itMap["id"] == evidenceID {
+				ev[i] = entry
+				return
+			}
+		}
+		m["evidence"] = append(ev, entry)
+	})
+}
+
+// goodAuditVerdict is a well-shaped FAIL report: frozen reason codes,
+// ok-entries with empty reason_code, string details, object metrics.
+func goodAuditVerdict() map[string]interface{} {
+	return map[string]interface{}{
+		"status":      "FAIL",
+		"reason_code": "NOISE",
+		"audits": []map[string]interface{}{
+			{"name": "claim_conditions", "status": "fail", "reason_code": "NOISE", "detail": "d", "metrics": map[string]interface{}{"k": "v"}},
+			{"name": "trial_disclosure", "status": "fail", "reason_code": "NOISE", "detail": "d", "metrics": map[string]interface{}{}},
+			{"name": "metric_reproduction", "status": "ok", "reason_code": "", "detail": "d", "metrics": map[string]interface{}{}},
+		},
+	}
+}
+
+func TestAuditShapeCleanReportPasses(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", goodAuditVerdict())
+	expectOverall(t, root, "PASS")
+}
+
+// The planted defect that corrupted per-case evidence in an object record:
+// narrative text passed positionally into reason_code of an ok-audit.
+func TestAuditShapeRejectsTextInOkReasonCode(t *testing.T) {
+	root := fixtureRoot(t)
+	v := goodAuditVerdict()
+	audits := v["audits"].([]map[string]interface{})
+	audits[2]["reason_code"] = "reported MAE reproduces (narrative leaked)"
+	writeAuditReport(t, root, "report.json", "E-R1", v)
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "AUDIT_SHAPE")
+}
+
+func TestAuditShapeRejectsUnknownReasonCode(t *testing.T) {
+	root := fixtureRoot(t)
+	v := goodAuditVerdict()
+	audits := v["audits"].([]map[string]interface{})
+	audits[0]["reason_code"] = "WHATEVER"
+	writeAuditReport(t, root, "report.json", "E-R1", v)
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "AUDIT_SHAPE")
+}
+
+// AUDIT_DECISION_XREF: decision metadata must match the report exactly —
+// a claim may not quietly disagree with its own evidence.
+func TestAuditDecisionXrefMatchesAndMismatches(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", goodAuditVerdict())
+	editVerdictJSON(t, root, func(m map[string]interface{}) {
+		claims, _ := m["claims"].([]interface{})
+		cm, _ := claims[0].(map[string]interface{}) // C-01
+		cm["case_verdict"] = "FAIL"
+		cm["case_reason_code"] = "NOISE"
+		cm["failing_audits"] = []string{"trial_disclosure", "claim_conditions"}
+		cm["inconclusive_audits"] = []string{}
+		cm["evidence"] = []string{"E-01", "E-R1"}
+	})
+	expectOverall(t, root, "PASS")
+
+	editVerdictJSON(t, root, func(m map[string]interface{}) {
+		claims, _ := m["claims"].([]interface{})
+		cm, _ := claims[0].(map[string]interface{})
+		cm["case_verdict"] = "PASS" // quietly soften the recorded verdict
+	})
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "AUDIT_DECISION_XREF")
+}
+
+// CLAIM_PROMISE: promises live in the LOCKED claims.md and must hold in the
+// run-output evidence; a promised audit going "ok" breaks the record.
+func TestClaimPromiseViolatedFails(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", goodAuditVerdict())
+	claimsPath := filepath.Join(root, "trust", "claims.md")
+	claims, err := os.ReadFile(claimsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims = append(claims, []byte("\nPromise: case=case-a audits=claim_conditions,trial_disclosure evidence=E-R1\n")...)
+	if err := os.WriteFile(claimsPath, claims, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	expectOverall(t, root, "PASS")
+
+	writeAuditReport(t, root, "report.json", "E-R1", func() map[string]interface{} {
+		v := goodAuditVerdict()
+		audits := v["audits"].([]map[string]interface{})
+		audits[1]["status"] = "ok" // the promised audit quietly passes
+		audits[1]["reason_code"] = ""
+		return v
+	}())
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "CLAIM_PROMISE")
+}
+
+func TestClaimPromiseMalformedFails(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", goodAuditVerdict())
+	claimsPath := filepath.Join(root, "trust", "claims.md")
+	claims, err := os.ReadFile(claimsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims = append(claims, []byte("\nPromise: case=case-a evidence=E-R1\n")...) // audits missing
+	if err := os.WriteFile(claimsPath, claims, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "CLAIM_PROMISE")
+}
+
+// REQUIRED_METRICS: a manifest-declared contract (data, not code).
+func TestRequiredMetricsContract(t *testing.T) {
+	root := fixtureRoot(t)
+	writeAuditReport(t, root, "report.json", "E-R1", goodAuditVerdict())
+	editManifestJSON(t, root, func(m map[string]interface{}) {
+		m["audit_metrics_contract"] = map[string]interface{}{
+			"claim_conditions": map[string]interface{}{
+				"on_status": "fail", "required_keys": []string{"relative_gap"},
+			},
+		}
+	})
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "REQUIRED_METRICS")
+
+	writeAuditReport(t, root, "report.json", "E-R1", func() map[string]interface{} {
+		v := goodAuditVerdict()
+		audits := v["audits"].([]map[string]interface{})
+		audits[0]["metrics"] = map[string]interface{}{"relative_gap": 0.5}
+		return v
+	}())
+	expectOverall(t, root, "PASS")
+}
+
+// EVIDENCE_SECTION: non-evidence content must live in disclosures[], not in
+// evidence[] (an id collision is the reuse of a spent evidence slot).
+func TestEvidenceSectionCollisionFails(t *testing.T) {
+	root := fixtureRoot(t)
+	editManifestJSON(t, root, func(m map[string]interface{}) {
+		m["disclosures"] = []map[string]interface{}{{
+			"id": "E-01", "path": "artifact.txt",
+			"sha256": "df266822f87e2b0b8d12f9a3d742700e12cf6a74397926767206f856cfe0561e",
+		}}
+	})
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "EVIDENCE_SECTION")
+
+	editManifestJSON(t, root, func(m map[string]interface{}) {
+		m["disclosures"] = []map[string]interface{}{{
+			"id": "D-01", "path": "artifact.txt",
+			"sha256": "df266822f87e2b0b8d12f9a3d742700e12cf6a74397926767206f856cfe0561e",
+		}}
+	})
+	expectOverall(t, root, "PASS")
+}
+
+// EXTERNAL_REF_WHITELIST: dangling external record citations fail; the
+// manifest whitelist and the supersedes chain are the legitimate routes.
+func TestExternalRefWhitelist(t *testing.T) {
+	root := fixtureRoot(t)
+	claimsPath := filepath.Join(root, "trust", "claims.md")
+	claims, err := os.ReadFile(claimsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims = append(claims, []byte("\nAs measured in V-FOREIGN-001 (claim C-99).\n")...)
+	if err := os.WriteFile(claimsPath, claims, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "EXTERNAL_REF_WHITELIST")
+
+	editManifestJSON(t, root, func(m map[string]interface{}) {
+		m["external_references"] = []string{"V-FOREIGN-001"}
+	})
+	expectOverall(t, root, "PASS")
+
+	editVerdictJSON(t, root, func(m map[string]interface{}) {
+		m["verifier"] = "Supersedes V-OTHER-009; not independent"
+	})
+	expectOverall(t, root, "PASS")
+}
+
+// PATH_HYGIENE: machine-local paths and personal emails must not leak.
+func TestPathHygieneFailsOnMachinePaths(t *testing.T) {
+	root := fixtureRoot(t)
+	lim := filepath.Join(root, "trust", "limitations.md")
+	b, err := os.ReadFile(lim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(lim, append(b, []byte("\n- Raw output lived in /home/ninjacat/notes.txt.\n")...), 0o644)
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "PATH_HYGIENE")
+}
+
+// VERSION_CONSISTENCY: verdict_id suffix and the limitations.md record
+// version must agree (the stale "record version 3" header class).
+func TestVersionConsistencyFailsOnStaleHeader(t *testing.T) {
+	root := fixtureRoot(t)
+	lim := filepath.Join(root, "trust", "limitations.md")
+	b, err := os.ReadFile(lim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(lim, bytes.ReplaceAll(b, []byte("record version 1"), []byte("record version 9")), 0o644)
+	rep := expectOverall(t, root, "FAIL")
+	expectFailCheck(t, rep, "VERSION_CONSISTENCY")
+}
+
+// gitRecordFixture builds a real git work tree: claims frozen by a lock
+// commit, then the record files committed on top.
+func gitRecordFixture(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	run := func(args ...string) string {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("init", "-q", "-b", "main")
+	if err := os.MkdirAll(filepath.Join(dir, "trust"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name string, data []byte) {
+		if err := os.WriteFile(filepath.Join(dir, "trust", name), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commit := func(msg string) string {
+		run("-c", "user.email=fixture@local", "-c", "user.name=fixtures", "add", "-A")
+		run("-c", "user.email=fixture@local", "-c", "user.name=fixtures", "commit", "-q", "-m", msg)
+		return run("rev-parse", "HEAD")
+	}
+	write("claims.md", []byte("# fixture claims\n\n## C-01 clean\n\nPASS criterion: nothing.\nVerification V-01: clean run.\n"))
+	lock := commit("criteria lock (claims frozen)")
+	writeJSON := func(name string, v interface{}) {
+		b, _ := json.MarshalIndent(v, "", "  ")
+		write(name, append(b, '\n'))
+	}
+	writeJSON("evidence-manifest.json", map[string]interface{}{
+		"schema": "trust-manifest/v3.5", "date": "2026-11-17",
+		"criteria_lock": map[string]interface{}{"commit": lock, "date": "2026-11-17", "note": "fixture lock"},
+		"object":        map[string]interface{}{"commit": lock},
+		"evidence": []map[string]interface{}{
+			{"id": "E-01", "type": "code", "path": "trust/claims.md", "sha256": nil},
+		},
+		"controls": []map[string]interface{}{{"id": "NC-FIXTURE", "N": 50}},
+	})
+	writeJSON("verdict.json", map[string]interface{}{
+		"verdict_id": "V-FIXTURE-001", "date": "2026-11-17", "valid_until": "object-change",
+		"object_version": lock,
+		"claims": []map[string]interface{}{
+			{"id": "C-01", "status": "PASS", "verification": "V-01: clean run", "evidence": []string{"E-01"}},
+		},
+	})
+	write("limitations.md", []byte("# fixture limitations (record version 1)\n"))
+	commit("record files")
+	return dir
+}
+
+// LOCK_FIDELITY: claims.md must remain byte-identical to the criteria-lock
+// commit — a post-lock edit (even uncommitted) is a post-hoc criteria change.
+func TestLockFidelityFailsOnPostLockEdit(t *testing.T) {
+	dir := gitRecordFixture(t)
+	expectOverall(t, dir, "PASS") // pre-edit state is green
+
+	claimsPath := filepath.Join(dir, "trust", "claims.md")
+	b, err := os.ReadFile(claimsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(claimsPath, append(b, []byte("\nPOST-HOC EDIT\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rep := expectOverall(t, dir, "FAIL")
+	expectFailCheck(t, rep, "LOCK_FIDELITY")
+}
+
+// F-24: dangling pointers must be diagnosed as MISSING OBJECTS, not as a
+// "side branch" (the object record of v4 pointed at commits pruned by a
+// history rewrite).
+func TestLockPointerDanglingDiagnosed(t *testing.T) {
+	dir := gitRecordFixture(t)
+	editManifestJSON(t, dir, func(m map[string]interface{}) {
+		cl, _ := m["criteria_lock"].(map[string]interface{})
+		cl["commit"] = "857cc60c03424fdfd9f6d06b434a90f772f857b4"
+		obj, _ := m["object"].(map[string]interface{})
+		obj["commit"] = "23c421dd7a25de4b703fa9f3af1ea5a4e2b81190"
+	})
+	rep := expectOverall(t, dir, "FAIL")
+	for _, id := range []string{"LOCK_BLOB", "LOCK_ANCESTOR", "LOCK_FIDELITY", "OBJECT_REACHABLE"} {
+		expectFailCheck(t, rep, id)
+	}
+	for _, c := range rep.Checks {
+		if (c.ID == "LOCK_BLOB" || c.ID == "OBJECT_REACHABLE") && !strings.Contains(c.Detail, "not found") {
+			t.Errorf("%s detail should diagnose a missing object: %s", c.ID, c.Detail)
+		}
+	}
+}
+
+func TestReportCarriesCheckedCommit(t *testing.T) {
+	dir := gitRecordFixture(t)
+	rep := expectOverall(t, dir, "PASS")
+	if rep.CheckedCommit == "" {
+		t.Fatal("checked_commit missing on a git-root record")
+	}
+	if out, err := gitOut(dir, "rev-parse", "HEAD"); err != nil || out != rep.CheckedCommit {
+		t.Fatalf("checked_commit %q != HEAD %q (%v)", rep.CheckedCommit, out, err)
+	}
 }

@@ -1,4 +1,4 @@
-# tc self-test fixture: known limitations
+# tc self-test fixture: known limitations (record version 1)
 
 This fixture record exists only to exercise the trust_check validator
 (checker/ tests). Nothing here asserts anything about any real system.
